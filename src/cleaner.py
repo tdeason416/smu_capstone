@@ -1,3 +1,4 @@
+#/usr/bin/python
 import pandas as pd;
 import numpy as np;
 import os
@@ -7,15 +8,35 @@ import nltk
 import re
 import time
 import sys
+import json
+from collections import Counter
 import logging
 import multiprocessing;
 #from wordcloud import WordCloud, ImageColorGenerator
 #from itertools import cycle
 
+from nltk.corpus import words, stopwords
+from nltk.stem.porter import PorterStemmer
+from nltk import word_tokenize, sent_tokenize, pos_tag
+#from gensim import corpora
+import spacy
+#spacy.load('en')
+from spacy.lang.en import English
+
+
 #################
 ## Arguements
 #################
 
+more_stop_words = ['company','months','products','operations','income','period','sales','market','business','stock','results',
+                  'revenue','shares','share','revenues','assets','statements','value','costs','product','quarter','increase',
+                  'expense','customers','performance','interest','charges','price','compensation','agreement','property','amount',
+                  'markets','information','expenses','facility','customer','taxes','demand','payments',
+                  'stringitemtype','textblockitemtype']
+
+en_stop = nltk.corpus.stopwords.words('english')
+en_stop.extend(more_stop_words)
+parser = English()
 
 #################
 ## SOME FUNCTIONS
@@ -81,32 +102,25 @@ def prepare_text(text):
     '''
     Tokenizes the text, removes short words, removes stop words, and then gets the lemma of each word.
     '''
-    #if len(text)> 2*(10**6)-1 :
-    #    print(len(text))
-    
     if len(text)> 10**6 - 1 :
         inc = 10**6
-        texts = [text[(i-1) * inc : i * inc]
-        #text1 = text[:999999]
-        #text2 = text[999999:]
-        #tokens = tokenize(text1) + tokenize(text2)
+        texts = [text[(i-1) * inc : i * inc] for i in range(0, text, 10**6)]
         tokens = combine_lists(texts)
     else:
         tokens = tokenize(text)
         
-    #tokens = [token for token in tokens if len(token) > 4]
-    #tokens = [token for token in tokens if token[0]!='-']
-    #tokens = [token for token in tokens if token[0]!='x']
-    #tokens = [token for token in tokens if token not in en_stop]
-   
     new_tokens = []
     for tok in tokens:
-        if len > 4 and tok[0] not in {'-', 'x'} and tok not in en_stop:
+        if len(tok) > 4 and tok[0] not in {'-', 'x'} and tok not in en_stop:
             new_tokens.append(tok)
     pos_tags = nltk.pos_tag(new_tokens)
-    pos_tokens = [pos_tag[0] for pos_tag in pos_tags if pos_tag[1][0] == "N"]
+    token_counts = Counter()
+    for tag in pos_tags:
+        if tag[1][0] == 'N':
+            token_counts[tag[0]] += 1
+    #pos_tokens = [pos_tag[0] for pos_tag in pos_tags if pos_tag[1][0] == "N"]
     #final_text = ""
-    return pos_tokens
+    return json.dumps(token_counts)
 
 def prepare_all(all_files):
     prepared_filings = []
@@ -114,4 +128,24 @@ def prepare_all(all_files):
         tokens = prepare_text(file)
         prepared_filings.append(tokens)
     
-    return prepared_filings 
+    return prepared_filings
+
+
+#################
+## Main Function
+#################
+
+def main(input_folder, output_folder):
+    '''
+    NOTE the last character for input_folder/output_folder must be a "/" for this function to work
+    '''
+    in_files = os.listdir(input_folder)
+    out_files = set(os.listdir(output_folder))
+    for f in in_files:
+        if f not in out_files:
+            open(output_folder + f, 'w').write(prepare_text(input_folder + f))
+
+if __name__ == "__main__":
+    in_folder = input("location of raw html (must include '/')")
+    out_folder = input("location to save .json files (must include '/')")
+    main(in_folder, out_folder)
