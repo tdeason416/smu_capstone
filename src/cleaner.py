@@ -50,23 +50,23 @@ def load_filings(folder_name):
         filings.append(filing)
     return filings
 
-def get_text_from_file(file):
-    page_soup = bs.BeautifulSoup(file, 'lxml')
+def get_text_from_file(fl):
+    page_soup = bs.BeautifulSoup(open(fl), 'lxml')
     divs = page_soup.find_all('div')
     all_text = []
     for div in divs:
         text = div.getText()
         if len(text) > 200 and text[0] != '\xa0':
             all_text.append(text)
-    return all_text
+    return "\n".join(all_text)
 
 def combine_text(text):
     file = ""
     for i in range(len(text)):
         ## removes all the /xa0 /n /t garbage and some extra spaces
         cleaner_text = re.sub('\s+', ' ', text[i]).strip()
-        file = file + " " + cleaner_text
-    return file
+        fh = fh + " " + cleaner_text
+    return fh
 
 def get_all_files(files):
     all_files = []
@@ -80,7 +80,6 @@ def tokenize(text):
     '''
     Separates each word from the others, making them lower case and removing URLs and possible screen names that show up.
     '''
-
     lda_tokens = []
     tokens = parser(text)
     for token in tokens:
@@ -93,27 +92,37 @@ def tokenize(text):
     return lda_tokens
 
 def combine_lists(list_of_lists):
-    out = []
+    out = [] 
     for li in list_of_lists:
-        out.append(li)
-    return out
+        out += li
+    return out 
 
-def prepare_text(text):
+def prepare_text(fh):
     '''
     Tokenizes the text, removes short words, removes stop words, and then gets the lemma of each word.
     '''
+    try:
+        text = get_text_from_file(fh)
+        #open(fh).read()
+    except UnicodeDecodeError:
+        return None
     if len(text)> 10**6 - 1 :
         inc = 10**6
-        texts = [text[(i-1) * inc : i * inc] for i in range(0, text, 10**6)]
-        tokens = combine_lists(texts)
+        tokens = []
+        i = 0
+        while i < len(text):
+            tokens += tokenize(text[i:i+ 10 **6])
+            i += 10**6
+        #texts = [tokenize(text[(i-1) * inc : i * inc]) for i in range(0, len(text), 10**6)]
+        #tokens = combine_lists(texts)
     else:
         tokens = tokenize(text)
-        
     new_tokens = []
     for tok in tokens:
         if len(tok) > 4 and tok[0] not in {'-', 'x'} and tok not in en_stop:
             new_tokens.append(tok)
     pos_tags = nltk.pos_tag(new_tokens)
+    #print(pos_tags[:3])
     token_counts = Counter()
     for tag in pos_tags:
         if tag[1][0] == 'N':
@@ -121,14 +130,6 @@ def prepare_text(text):
     #pos_tokens = [pos_tag[0] for pos_tag in pos_tags if pos_tag[1][0] == "N"]
     #final_text = ""
     return json.dumps(token_counts)
-
-def prepare_all(all_files):
-    prepared_filings = []
-    for file in all_files:
-        tokens = prepare_text(file)
-        prepared_filings.append(tokens)
-    
-    return prepared_filings
 
 
 #################
@@ -143,7 +144,11 @@ def main(input_folder, output_folder):
     out_files = set(os.listdir(output_folder))
     for f in in_files:
         if f not in out_files:
-            open(output_folder + f, 'w').write(prepare_text(input_folder + f))
+            #prepare_text(input_folder + f)
+            prepared = prepare_text(input_folder + f)
+            if prepared:
+                open(output_folder + f, 'w').write(prepare_text(input_folder + f))
+                print(f, " completed")
 
 if __name__ == "__main__":
     in_folder = input("location of raw html (must include '/')")
