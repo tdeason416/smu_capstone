@@ -107,12 +107,12 @@ def prepare_text(fh):
     except UnicodeDecodeError:
         return None
     if len(text)> 10**6 - 1 :
-        inc = 10**6
+        inc = 10**6 - 1
         tokens = []
         i = 0
         while i < len(text):
-            tokens += tokenize(text[i:i+ 10 **6])
-            i += 10**6
+            tokens += tokenize(text[i:i + inc])
+            i += inc
         #texts = [tokenize(text[(i-1) * inc : i * inc]) for i in range(0, len(text), 10**6)]
         #tokens = combine_lists(texts)
     else:
